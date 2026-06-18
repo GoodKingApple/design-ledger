@@ -13,7 +13,6 @@ body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #b
 .topbar-info { flex: 1; }
 .topbar-name { font-size: 15px; font-weight: 700; }
 .topbar-sub { font-size: 11px; opacity: 0.6; margin-top: 1px; }
-.topbar-icons { display: flex; gap: 14px; font-size: 18px; opacity: 0.7; }
 .chat-area { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
 .chat-area::-webkit-scrollbar { width: 4px; }
 .chat-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
@@ -47,8 +46,8 @@ body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #b
 .list-item:last-child { border-bottom: none; }
 .list-item-name { font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }
 .list-item-meta { color: #888; display: flex; gap: 8px; flex-wrap: wrap; }
+.highlight { background: #fff176; color: #3c1e1e; border-radius: 3px; padding: 0 2px; font-weight: 700; }
 .input-bar { background: #f0f0f0; border-top: 1px solid #ddd; padding: 10px 12px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.input-icon { font-size: 22px; opacity: 0.5; }
 .input-field { flex: 1; background: white; border: none; border-radius: 22px; padding: 10px 16px; font-size: 14px; font-family: inherit; outline: none; }
 .send-btn { width: 38px; height: 38px; background: #ffe066; border: none; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
 .send-btn:hover { background: #ffb700; }
@@ -60,6 +59,8 @@ body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #b
 .sync-badge { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 8px; font-weight: 600; margin-left: 6px; }
 .sync-ok { background: #c6f6d5; color: #276749; }
 .sync-fail { background: #fed7d7; color: #c53030; }
+.search-type-btn { background: white; border: 1.5px solid #2d6a9f; color: #2d6a9f; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-family: inherit; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.search-type-btn:hover { background: #ebf4ff; }
 </style>
 </head>
 <body>
@@ -70,30 +71,28 @@ body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #b
       <div class="topbar-name">설계관리봇 <span style="font-size:10px;opacity:0.7">🟢 구글시트 연동</span></div>
       <div class="topbar-sub">설계관리대장 도우미</div>
     </div>
-    <div class="topbar-icons">🔍 ☰</div>
   </div>
 
   <div class="chat-area" id="chatArea"></div>
 
   <div class="input-bar">
-    <span class="input-icon">+</span>
     <input class="input-field" id="inputField" placeholder="메시지를 입력하세요" onkeydown="if(event.key==='Enter') sendMsg()">
     <button class="send-btn" onclick="sendMsg()">➤</button>
   </div>
 </div>
 
 <script>
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbw-TLvezQ5v0awSlMm2ppSk_oWSzILd7smA1okk5CrBu1zld5zroiAY7eJDMun-6mZm9w/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyCMp2NpdOT2fTqxveEEtjD9196ovzF0efP-olv5gSw45eTa4WQErTsXH0jHBsR7CTpgQ/exec';
 
 let step = 'menu';
 let draft = {};
+let searchType = '';
 const area = document.getElementById('chatArea');
 const inputField = document.getElementById('inputField');
 
 function nowStr() {
   return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
-
 function scrollBot() { setTimeout(() => { area.scrollTop = area.scrollHeight; }, 50); }
 
 function addDateDivider() {
@@ -138,10 +137,13 @@ function botCardEl(data) {
   scrollBot();
 }
 
-function showBtns(btns) {
+function showBtns(btns, type = 'normal') {
   const row = document.createElement('div');
   row.className = 'btn-group';
-  row.innerHTML = btns.map(b => `<button class="quick-btn" onclick="clickBtn('${b}')">${b}</button>`).join('');
+  row.innerHTML = btns.map(b => {
+    const cls = type === 'search' ? 'search-type-btn' : 'quick-btn';
+    return `<button class="${cls}" onclick="clickBtn('${b}')">${b}</button>`;
+  }).join('');
   area.appendChild(row);
   scrollBot();
 }
@@ -163,7 +165,7 @@ function showTyping() {
 function hideTyping() { const el = document.getElementById('typing'); if (el) el.remove(); }
 
 function clickBtn(val) {
-  document.querySelectorAll('.quick-btn').forEach(b => b.disabled = true);
+  document.querySelectorAll('.quick-btn, .search-type-btn').forEach(b => b.disabled = true);
   userMsg(val);
   handleInput(val);
 }
@@ -176,7 +178,14 @@ function sendMsg() {
   handleInput(v);
 }
 
-// ── 구글시트 저장 (JSONP 방식) ──
+// 검색어 하이라이트
+function highlight(text, keyword) {
+  if (!keyword) return text;
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(text).replace(new RegExp(escaped, 'gi'), m => `<span class="highlight">${m}</span>`);
+}
+
+// 구글시트 저장 (JSONP)
 function saveToSheet(data) {
   return new Promise((resolve) => {
     const cbName = 'cb_' + Date.now();
@@ -198,7 +207,7 @@ function saveToSheet(data) {
   });
 }
 
-// ── 구글시트 불러오기 (JSONP 방식) ──
+// 구글시트 불러오기 (JSONP)
 function loadFromSheet() {
   return new Promise((resolve) => {
     const cbName = 'cb_' + Date.now();
@@ -210,37 +219,46 @@ function loadFromSheet() {
   });
 }
 
-// ── 목록 표시 ──
+// 전체 목록 표시
 async function showList() {
   showTyping();
   const rows = await loadFromSheet();
   hideTyping();
-  if (!rows || rows.length === 0) { botMsg('등록된 건이 없습니다.'); return; }
+  if (!rows || rows.length === 0) { botMsg('등록된 건이 없습니다.', false); return; }
+  renderList(rows, null, null);
+}
 
+// 검색 결과 표시
+function renderList(rows, keyword, field) {
   const total = rows.reduce((s, r) => s + (Number(String(r['금액']).replace(/,/g,'')) || 0), 0);
   const el = document.createElement('div');
   el.className = 'bot-row';
-  const items = rows.map((r, i) => `
-    <div class="list-item">
-      <div class="list-item-name">${i+1}. ${r['건명'] || '-'}</div>
-      <div class="list-item-meta">
-        <span>${Number(r['금액']).toLocaleString('ko-KR')}원</span>
-        <span class="badge badge-${r['계약방법']}">${r['계약방법'] || '-'}</span>
-        <span>👤 ${r['영업사원'] || '-'}</span>
-        <span>🏢 ${r['대리점'] || '-'}</span>
-        <span>📅 ${r['수정일'] || '-'}</span>
-      </div>
-    </div>
-  `).join('');
+  const items = rows.map((r, i) => {
+    const name     = field === '건명'     ? highlight(r['건명'] || '-', keyword)     : (r['건명'] || '-');
+    const sales    = field === '영업사원'  ? highlight(r['영업사원'] || '-', keyword)  : (r['영업사원'] || '-');
+    const agency   = field === '대리점'   ? highlight(r['대리점'] || '-', keyword)    : (r['대리점'] || '-');
+    return `
+      <div class="list-item">
+        <div class="list-item-name">${i+1}. ${name}</div>
+        <div class="list-item-meta">
+          <span>${Number(r['금액']).toLocaleString('ko-KR')}원</span>
+          <span class="badge badge-${r['계약방법']}">${r['계약방법'] || '-'}</span>
+          <span>👤 ${sales}</span>
+          <span>🏢 ${agency}</span>
+          <span>📅 ${r['수정일'] || '-'}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  const title = keyword ? `🔍 "${keyword}" 검색결과 ${rows.length}건` : `📋 총 ${rows.length}건`;
   el.innerHTML = `
     <div style="width:36px;flex-shrink:0"></div>
     <div style="max-width:92%">
       <div class="list-card">
-        <div class="list-header">📋 총 ${rows.length}건 | 합계 ${total.toLocaleString('ko-KR')}원</div>
+        <div class="list-header">${title} | 합계 ${total.toLocaleString('ko-KR')}원</div>
         ${items}
       </div>
-    </div>
-  `;
+    </div>`;
   area.appendChild(el);
   scrollBot();
 }
@@ -249,11 +267,13 @@ function showMenu() {
   step = 'menu';
   setTimeout(() => {
     botMsg('무엇을 도와드릴까요? 😊', false);
-    showBtns(['✏️ 새 건 등록', '📋 목록 보기']);
+    showBtns(['✏️ 새 건 등록', '📋 목록 보기', '🔍 검색']);
   }, 100);
 }
 
 async function handleInput(val) {
+
+  // ── 메뉴 ──
   if (step === 'menu') {
     if (val === '✏️ 새 건 등록') {
       step = 'name'; draft = {};
@@ -262,6 +282,10 @@ async function handleInput(val) {
       botMsg('⏳ 구글시트에서 불러오는 중...', false);
       await showList();
       showMenu();
+    } else if (val === '🔍 검색') {
+      step = 'searchType';
+      botMsg('어떤 항목으로 검색할까요? 🔍', false);
+      showBtns(['📌 건명 검색', '👤 영업사원 검색', '🏢 대리점 검색'], 'search');
     } else {
       botMsg('아래 메뉴를 선택해 주세요 😊', false);
       showMenu();
@@ -269,6 +293,62 @@ async function handleInput(val) {
     return;
   }
 
+  // ── 검색 분류 선택 ──
+  if (step === 'searchType') {
+    const map = { '📌 건명 검색': '건명', '👤 영업사원 검색': '영업사원', '🏢 대리점 검색': '대리점' };
+    if (!map[val]) {
+      botMsg('버튼을 눌러 선택해 주세요.', false);
+      showBtns(['📌 건명 검색', '👤 영업사원 검색', '🏢 대리점 검색'], 'search');
+      return;
+    }
+    searchType = map[val];
+    step = 'searchKeyword';
+    showTyping();
+    setTimeout(() => { hideTyping(); botMsg(`${searchType} 검색어를 입력해 주세요. 🔎`, false); }, 500);
+    return;
+  }
+
+  // ── 검색어 입력 ──
+  if (step === 'searchKeyword') {
+    const keyword = val.trim();
+    botMsg(`⏳ <b>${searchType}</b> 에서 "<b>${keyword}</b>" 검색 중...`, false);
+    showTyping();
+    const rows = await loadFromSheet();
+    hideTyping();
+
+    if (!rows || rows.length === 0) {
+      botMsg('등록된 데이터가 없습니다.', false);
+    } else {
+      const fieldMap = { '건명': '건명', '영업사원': '영업사원', '대리점': '대리점' };
+      const col = fieldMap[searchType];
+      const filtered = rows.filter(r => String(r[col] || '').toLowerCase().includes(keyword.toLowerCase()));
+      if (filtered.length === 0) {
+        botMsg(`"<b>${keyword}</b>" 에 해당하는 결과가 없습니다. 😥`, false);
+      } else {
+        renderList(filtered, keyword, searchType);
+      }
+    }
+    setTimeout(() => {
+      botMsg('다른 검색을 하시겠어요?', false);
+      showBtns(['🔍 다시 검색', '🏠 메인으로']);
+    }, 300);
+    step = 'searchDone';
+    return;
+  }
+
+  // ── 검색 후 선택 ──
+  if (step === 'searchDone') {
+    if (val === '🔍 다시 검색') {
+      step = 'searchType';
+      botMsg('어떤 항목으로 검색할까요? 🔍', false);
+      showBtns(['📌 건명 검색', '👤 영업사원 검색', '🏢 대리점 검색'], 'search');
+    } else {
+      showMenu();
+    }
+    return;
+  }
+
+  // ── 등록 플로우 ──
   showTyping();
   await new Promise(r => setTimeout(r, 500));
   hideTyping();
@@ -308,7 +388,7 @@ async function handleInput(val) {
       if (ok) {
         botMsg(`✅ <b>${draft.name}</b> 이(가) 구글시트에 저장되었습니다! <span class="sync-badge sync-ok">저장 완료</span>`, false);
       } else {
-        botMsg(`❌ 저장에 실패했습니다. 네트워크를 확인해 주세요. <span class="sync-badge sync-fail">저장 실패</span>`, false);
+        botMsg(`❌ 저장에 실패했습니다. <span class="sync-badge sync-fail">저장 실패</span>`, false);
       }
       showMenu();
     } else {
@@ -318,7 +398,6 @@ async function handleInput(val) {
   }
 }
 
-// 초기 실행
 window.onload = () => {
   addDateDivider();
   showTyping();

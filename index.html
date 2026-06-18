@@ -84,6 +84,7 @@ body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #b
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbww0FmeJlJ0qIUDyfu7b-9pEdM0KS2jnpkfacJTwhVEAq2UIExKgSPHUdK-UI8AOSOG-w/exec';
 
+let userPassword = '';
 let step = 'menu';
 let draft = {};
 let searchType = '';
@@ -102,6 +103,45 @@ function addDateDivider() {
   area.appendChild(d);
 }
 
+// 구글시트 저장 (JSONP)
+function saveToSheet(data) {
+  return new Promise((resolve) => {
+    const cbName = 'cb_' + Date.now();
+    const params = new URLSearchParams({
+      action: 'save',
+      pw: userPassword, // 🔑 추가
+      name: data.name,
+      amount: data.amount,
+      contract: data.method,
+      salesperson: data.salesperson,
+      agency: data.agency,
+      modDate: data.modDate,
+      callback: cbName
+    });
+    const script = document.createElement('script');
+    script.src = GAS_URL + '?' + params.toString();
+    window[cbName] = (res) => { delete window[cbName]; script.remove(); resolve(res && res.result === 'success'); };
+    script.onerror = () => { delete window[cbName]; script.remove(); resolve(false); };
+    document.body.appendChild(script);
+  });
+}
+
+// 구글시트 불러오기 (JSONP)
+function loadFromSheet() {
+  return new Promise((resolve) => {
+    const cbName = 'cb_' + Date.now();
+    const script = document.createElement('script');
+    script.src = GAS_URL + '?action=list&pw=' + userPassword + '&callback=' + cbName; // 🔑 추가
+    window[cbName] = (res) => { delete window[cbName]; script.remove(); resolve(res && res.result === 'success' ? res.data : null); };
+    script.onerror = () => { delete window[cbName]; script.remove(); resolve(null); };
+    document.body.appendChild(script);
+  });
+}
+
+
+
+
+  
 function botMsg(html, showAvatar = true) {
   const row = document.createElement('div');
   row.className = 'bot-row';
@@ -399,6 +439,14 @@ async function handleInput(val) {
 }
 
 window.onload = () => {
+  // 페이지 열리자마자 암호 묻기
+  const pwInput = prompt('설계관리대장 비밀번호를 입력하세요:');
+  if (!pwInput) {
+    alert('비밀번호가 필요합니다. 페이지를 새로고침하여 다시 입력하세요.');
+    return;
+  }
+  userPassword = pwInput.trim(); // 전역 변수에 저장
+
   addDateDivider();
   showTyping();
   setTimeout(() => {

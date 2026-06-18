@@ -68,7 +68,7 @@ body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #b
   <div class="topbar">
     <div class="topbar-avatar">📋</div>
     <div class="topbar-info">
-      <div class="topbar-name">설계관리봇 <span style="font-size:10px;opacity:0.7">🟢 구글시트 연동</span></div>
+      <div class="topbar-name">설계관리봇 <span id="authBadge" style="font-size:10px;opacity:0.7">🟢 연결 중</span></div>
       <div class="topbar-sub">설계관리대장 도우미</div>
     </div>
   </div>
@@ -103,13 +103,13 @@ function addDateDivider() {
   area.appendChild(d);
 }
 
-// 구글시트 저장 (JSONP)
+// 구글시트 저장 (JSONP) - 비밀번호 탑재 필수
 function saveToSheet(data) {
   return new Promise((resolve) => {
     const cbName = 'cb_' + Date.now();
     const params = new URLSearchParams({
       action: 'save',
-      pw: userPassword, // 🔑 추가
+      pw: userPassword, 
       name: data.name,
       amount: data.amount,
       contract: data.method,
@@ -126,22 +126,18 @@ function saveToSheet(data) {
   });
 }
 
-// 구글시트 불러오기 (JSONP)
+// 구글시트 불러오기 (JSONP) - 비밀번호 탑재 필수
 function loadFromSheet() {
   return new Promise((resolve) => {
     const cbName = 'cb_' + Date.now();
     const script = document.createElement('script');
-    script.src = GAS_URL + '?action=list&pw=' + userPassword + '&callback=' + cbName; // 🔑 추가
+    script.src = GAS_URL + '?action=list&pw=' + userPassword + '&callback=' + cbName; 
     window[cbName] = (res) => { delete window[cbName]; script.remove(); resolve(res && res.result === 'success' ? res.data : null); };
     script.onerror = () => { delete window[cbName]; script.remove(); resolve(null); };
     document.body.appendChild(script);
   });
 }
 
-
-
-
-  
 function botMsg(html, showAvatar = true) {
   const row = document.createElement('div');
   row.className = 'bot-row';
@@ -218,57 +214,21 @@ function sendMsg() {
   handleInput(v);
 }
 
-// 검색어 하이라이트
 function highlight(text, keyword) {
   if (!keyword) return text;
-  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
   return String(text).replace(new RegExp(escaped, 'gi'), m => `<span class="highlight">${m}</span>`);
 }
 
-// 구글시트 저장 (JSONP)
-function saveToSheet(data) {
-  return new Promise((resolve) => {
-    const cbName = 'cb_' + Date.now();
-    const params = new URLSearchParams({
-      action: 'save',
-      name: data.name,
-      amount: data.amount,
-      contract: data.method,
-      salesperson: data.salesperson,
-      agency: data.agency,
-      modDate: data.modDate,
-      callback: cbName
-    });
-    const script = document.createElement('script');
-    script.src = GAS_URL + '?' + params.toString();
-    window[cbName] = (res) => { delete window[cbName]; script.remove(); resolve(res && res.result === 'success'); };
-    script.onerror = () => { delete window[cbName]; script.remove(); resolve(false); };
-    document.body.appendChild(script);
-  });
-}
-
-// 구글시트 불러오기 (JSONP)
-function loadFromSheet() {
-  return new Promise((resolve) => {
-    const cbName = 'cb_' + Date.now();
-    const script = document.createElement('script');
-    script.src = GAS_URL + '?action=list&callback=' + cbName;
-    window[cbName] = (res) => { delete window[cbName]; script.remove(); resolve(res && res.result === 'success' ? res.data : null); };
-    script.onerror = () => { delete window[cbName]; script.remove(); resolve(null); };
-    document.body.appendChild(script);
-  });
-}
-
-// 전체 목록 표시
 async function showList() {
   showTyping();
   const rows = await loadFromSheet();
   hideTyping();
-  if (!rows || rows.length === 0) { botMsg('등록된 건이 없습니다.', false); return; }
+  if (!rows) { botMsg('❌ 인증 오류 또는 데이터 로드 실패', false); return; }
+  if (rows.length === 0) { botMsg('등록된 건이 없습니다.', false); return; }
   renderList(rows, null, null);
 }
 
-// 검색 결과 표시
 function renderList(rows, keyword, field) {
   const total = rows.reduce((s, r) => s + (Number(String(r['금액']).replace(/,/g,'')) || 0), 0);
   const el = document.createElement('div');
@@ -307,21 +267,21 @@ function showMenu() {
   step = 'menu';
   setTimeout(() => {
     botMsg('무엇을 도와드릴까요? 😊', false);
-    showBtns(['✏️ 새 건 등록',  '🔍 검색']);
+    
+    // 🔐 권한에 따른 분기제어: admin 암호(예: admin1234!)일 때만 새 건 등록 버튼 활성화
+    if (userPassword === 'admin1234!') {
+      showBtns(['✏️ 새 건 등록', '🔍 검색']);
+    } else {
+      showBtns(['🔍 검색']); // 일반 사용자는 검색만 보임
+    }
   }, 100);
 }
 
 async function handleInput(val) {
-
-  // ── 메뉴 ──
   if (step === 'menu') {
-    if (val === '✏️ 새 건 등록') {
+    if (val === '✏️ 새 건 등록' && userPassword === 'admin1234!') {
       step = 'name'; draft = {};
       showTyping(); setTimeout(() => { hideTyping(); botMsg('건명을 입력해 주세요. 📝'); }, 600);
-    } else if (val === '📋 목록 보기') {
-      botMsg('⏳ 구글시트에서 불러오는 중...', false);
-      await showList();
-      showMenu();
     } else if (val === '🔍 검색') {
       step = 'searchType';
       botMsg('어떤 항목으로 검색할까요? 🔍', false);
@@ -333,7 +293,6 @@ async function handleInput(val) {
     return;
   }
 
-  // ── 검색 분류 선택 ──
   if (step === 'searchType') {
     const map = { '📌 건명 검색': '건명', '👤 영업사원 검색': '영업사원', '🏢 대리점 검색': '대리점' };
     if (!map[val]) {
@@ -348,7 +307,6 @@ async function handleInput(val) {
     return;
   }
 
-  // ── 검색어 입력 ──
   if (step === 'searchKeyword') {
     const keyword = val.trim();
     botMsg(`⏳ <b>${searchType}</b> 에서 "<b>${keyword}</b>" 검색 중...`, false);
@@ -356,7 +314,9 @@ async function handleInput(val) {
     const rows = await loadFromSheet();
     hideTyping();
 
-    if (!rows || rows.length === 0) {
+    if (!rows) {
+      botMsg('❌ 데이터를 가져오지 못했습니다. 권한을 확인하세요.', false);
+    } else if (rows.length === 0) {
       botMsg('등록된 데이터가 없습니다.', false);
     } else {
       const fieldMap = { '건명': '건명', '영업사원': '영업사원', '대리점': '대리점' };
@@ -376,7 +336,6 @@ async function handleInput(val) {
     return;
   }
 
-  // ── 검색 후 선택 ──
   if (step === 'searchDone') {
     if (val === '🔍 다시 검색') {
       step = 'searchType';
@@ -388,7 +347,13 @@ async function handleInput(val) {
     return;
   }
 
-  // ── 등록 플로우 ──
+  // ── 등록 플로우 (관리자 전용) ──
+  if (userPassword !== 'admin1234!') {
+    botMsg('❌ 등록 권한이 없습니다.', false);
+    showMenu();
+    return;
+  }
+
   showTyping();
   await new Promise(r => setTimeout(r, 500));
   hideTyping();
@@ -414,7 +379,7 @@ async function handleInput(val) {
     botMsg('대리점명을 입력해 주세요. 🏢', false);
   } else if (step === 'agency') {
     draft.agency = val; step = 'modDate';
-    botMsg('수정일을 입력해 주세요. (예: 2025-06-18) 📅', false);
+    botMsg('수정일을 입력해 주세요. (예: 2026-06-18) 📅', false);
   } else if (step === 'modDate') {
     draft.modDate = val; step = 'confirm';
     botMsg('아래 내용으로 등록할까요? ✅', false);
@@ -428,7 +393,7 @@ async function handleInput(val) {
       if (ok) {
         botMsg(`✅ <b>${draft.name}</b> 이(가) 구글시트에 저장되었습니다! <span class="sync-badge sync-ok">저장 완료</span>`, false);
       } else {
-        botMsg(`❌ 저장에 실패했습니다. <span class="sync-badge sync-fail">저장 실패</span>`, false);
+        botMsg(`❌ 저장에 실패했습니다. 권한 혹은 백엔드 코드를 확인하세요. <span class="sync-badge sync-fail">저장 실패</span>`, false);
       }
       showMenu();
     } else {
@@ -439,19 +404,33 @@ async function handleInput(val) {
 }
 
 window.onload = () => {
-  // 페이지 열리자마자 암호 묻기
   const pwInput = prompt('설계관리대장 비밀번호를 입력하세요:');
   if (!pwInput) {
     alert('비밀번호가 필요합니다. 페이지를 새로고침하여 다시 입력하세요.');
     return;
   }
-  userPassword = pwInput.trim(); // 전역 변수에 저장
+  userPassword = pwInput.trim(); 
+
+  // 상단 바 배포 명칭 변경
+  const badgeEl = document.getElementById('authBadge');
+  if (userPassword === 'admin1234!') {
+    badgeEl.textContent = '🟢 관리자 권한';
+    badgeEl.className = 'sync-badge sync-ok';
+  } else if (userPassword === 'user1234!') {
+    badgeEl.textContent = '🔵 조회 전용';
+    badgeEl.className = 'sync-badge';
+    badgeEl.style.background = '#bee3f8';
+    badgeEl.style.color = '#2c5282';
+  } else {
+    badgeEl.textContent = '🔴 미인증';
+    badgeEl.className = 'sync-badge sync-fail';
+  }
 
   addDateDivider();
   showTyping();
   setTimeout(() => {
     hideTyping();
-    botMsg('안녕하세요! 👋<br>설계관리대장 도우미입니다.<br>데이터는 <b>구글시트에 실시간 저장</b>됩니다.');
+    botMsg('안녕하세요! 👋<br>설계관리대장 도우미입니다.<br>데이터는 <b>구글시트에 실시간 연동</b>됩니다.');
     showMenu();
   }, 800);
 };

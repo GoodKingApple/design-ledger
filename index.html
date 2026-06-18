@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>설계관리대장 챗봇</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #b2c7d9; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.phone { width: 100%; max-width: 420px; height: 92vh; max-height: 820px; background: #b2c7d9; border-radius: 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.35); display: flex; flex-direction: column; overflow: hidden; }
+.topbar { background: #3c1e1e; color: white; padding: 14px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.topbar-avatar { width: 40px; height: 40px; background: linear-gradient(135deg, #ffe066, #ffb700); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.topbar-info { flex: 1; }
+.topbar-name { font-size: 15px; font-weight: 700; }
+.topbar-sub { font-size: 11px; opacity: 0.6; margin-top: 1px; }
+.topbar-icons { display: flex; gap: 14px; font-size: 18px; opacity: 0.7; }
+.chat-area { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+.chat-area::-webkit-scrollbar { width: 4px; }
+.chat-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
+.date-divider { text-align: center; font-size: 11px; color: rgba(0,0,0,0.45); background: rgba(255,255,255,0.4); padding: 4px 12px; border-radius: 20px; align-self: center; }
+.bot-row { display: flex; align-items: flex-start; gap: 8px; }
+.bot-avatar { width: 36px; height: 36px; background: linear-gradient(135deg, #ffe066, #ffb700); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.bot-bubble-wrap { display: flex; flex-direction: column; gap: 4px; max-width: 75%; }
+.bot-name { font-size: 11px; color: rgba(0,0,0,0.55); margin-bottom: 2px; margin-left: 2px; }
+.bot-bubble { background: white; color: #1a1a1a; padding: 10px 14px; border-radius: 0 16px 16px 16px; font-size: 14px; line-height: 1.6; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.bot-time { font-size: 10px; color: rgba(0,0,0,0.4); margin-top: auto; padding-top: 18px; }
+.user-row { display: flex; justify-content: flex-end; align-items: flex-end; gap: 6px; }
+.user-time { font-size: 10px; color: rgba(0,0,0,0.4); }
+.user-bubble { background: #ffe066; color: #1a1a1a; padding: 10px 14px; border-radius: 16px 16px 0 16px; font-size: 14px; line-height: 1.6; max-width: 72%; box-shadow: 0 1px 4px rgba(0,0,0,0.1); word-break: break-all; }
+.btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-left: 44px; }
+.quick-btn { background: white; border: 1.5px solid #ffe066; color: #3c1e1e; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-family: inherit; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.quick-btn:hover { background: #ffe066; }
+.quick-btn:disabled { opacity: 0.4; cursor: default; }
+.card { background: white; border-radius: 16px; padding: 14px 16px; font-size: 13px; line-height: 1.9; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.card-title { font-weight: 700; font-size: 14px; color: #3c1e1e; border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; margin-bottom: 8px; }
+.card-row { display: flex; justify-content: space-between; }
+.card-label { color: #888; }
+.card-val { font-weight: 600; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.badge-직접계약 { background: #c6f6d5; color: #276749; }
+.badge-입찰 { background: #bee3f8; color: #2c5282; }
+.badge-수의계약 { background: #fefcbf; color: #744210; }
+.badge-기타 { background: #e9d8fd; color: #553c9a; }
+.list-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.list-header { background: #3c1e1e; color: white; padding: 10px 14px; font-size: 13px; font-weight: 700; }
+.list-item { padding: 10px 14px; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
+.list-item:last-child { border-bottom: none; }
+.list-item-name { font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }
+.list-item-meta { color: #888; display: flex; gap: 8px; flex-wrap: wrap; }
+.input-bar { background: #f0f0f0; border-top: 1px solid #ddd; padding: 10px 12px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.input-icon { font-size: 22px; opacity: 0.5; }
+.input-field { flex: 1; background: white; border: none; border-radius: 22px; padding: 10px 16px; font-size: 14px; font-family: inherit; outline: none; }
+.send-btn { width: 38px; height: 38px; background: #ffe066; border: none; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+.send-btn:hover { background: #ffb700; }
+.typing { display: flex; gap: 4px; padding: 8px 12px; }
+.typing span { width: 8px; height: 8px; background: #bbb; border-radius: 50%; animation: bounce 1s infinite; }
+.typing span:nth-child(2) { animation-delay: 0.15s; }
+.typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+.sync-badge { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 8px; font-weight: 600; margin-left: 6px; }
+.sync-ok { background: #c6f6d5; color: #276749; }
+.sync-fail { background: #fed7d7; color: #c53030; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="topbar">
+    <div class="topbar-avatar">📋</div>
+    <div class="topbar-info">
+      <div class="topbar-name">설계관리봇 <span style="font-size:10px;opacity:0.7">🟢 구글시트 연동</span></div>
+      <div class="topbar-sub">설계관리대장 도우미</div>
+    </div>
+    <div class="topbar-icons">🔍 ☰</div>
+  </div>
+
+  <div class="chat-area" id="chatArea"></div>
+
+  <div class="input-bar">
+    <span class="input-icon">+</span>
+    <input class="input-field" id="inputField" placeholder="메시지를 입력하세요" onkeydown="if(event.key==='Enter') sendMsg()">
+    <button class="send-btn" onclick="sendMsg()">➤</button>
+  </div>
+</div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbw-TLvezQ5v0awSlMm2ppSk_oWSzILd7smA1okk5CrBu1zld5zroiAY7eJDMun-6mZm9w/exec';
+
+let step = 'menu';
+let draft = {};
+const area = document.getElementById('chatArea');
+const inputField = document.getElementById('inputField');
+
+function nowStr() {
+  return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function scrollBot() { setTimeout(() => { area.scrollTop = area.scrollHeight; }, 50); }
+
+function addDateDivider() {
+  const d = document.createElement('div');
+  d.className = 'date-divider';
+  d.textContent = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+  area.appendChild(d);
+}
+
+function botMsg(html, showAvatar = true) {
+  const row = document.createElement('div');
+  row.className = 'bot-row';
+  row.innerHTML = `
+    ${showAvatar ? `<div class="bot-avatar">📋</div>` : `<div style="width:36px;flex-shrink:0"></div>`}
+    <div class="bot-bubble-wrap">
+      ${showAvatar ? `<div class="bot-name">설계관리봇</div>` : ''}
+      <div class="bot-bubble">${html}</div>
+    </div>
+    <div class="bot-time">${nowStr()}</div>
+  `;
+  area.appendChild(row);
+  scrollBot();
+}
+
+function botCardEl(data) {
+  const row = document.createElement('div');
+  row.className = 'bot-row';
+  row.innerHTML = `
+    <div style="width:36px;flex-shrink:0"></div>
+    <div class="bot-bubble-wrap" style="max-width:88%">
+      <div class="card">
+        <div class="card-title">📝 ${data.name}</div>
+        <div class="card-row"><span class="card-label">금액</span><span class="card-val">${Number(data.amount).toLocaleString('ko-KR')} 원</span></div>
+        <div class="card-row"><span class="card-label">계약방법</span><span class="card-val"><span class="badge badge-${data.method}">${data.method}</span></span></div>
+        <div class="card-row"><span class="card-label">영업사원</span><span class="card-val">${data.salesperson}</span></div>
+        <div class="card-row"><span class="card-label">대리점</span><span class="card-val">${data.agency}</span></div>
+        <div class="card-row"><span class="card-label">수정일</span><span class="card-val">${data.modDate}</span></div>
+      </div>
+    </div>
+  `;
+  area.appendChild(row);
+  scrollBot();
+}
+
+function showBtns(btns) {
+  const row = document.createElement('div');
+  row.className = 'btn-group';
+  row.innerHTML = btns.map(b => `<button class="quick-btn" onclick="clickBtn('${b}')">${b}</button>`).join('');
+  area.appendChild(row);
+  scrollBot();
+}
+
+function userMsg(txt) {
+  const row = document.createElement('div');
+  row.className = 'user-row';
+  row.innerHTML = `<div class="user-time">${nowStr()}</div><div class="user-bubble">${txt}</div>`;
+  area.appendChild(row);
+  scrollBot();
+}
+
+function showTyping() {
+  const d = document.createElement('div');
+  d.className = 'bot-row'; d.id = 'typing';
+  d.innerHTML = `<div class="bot-avatar">📋</div><div class="bot-bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  area.appendChild(d); scrollBot();
+}
+function hideTyping() { const el = document.getElementById('typing'); if (el) el.remove(); }
+
+function clickBtn(val) {
+  document.querySelectorAll('.quick-btn').forEach(b => b.disabled = true);
+  userMsg(val);
+  handleInput(val);
+}
+
+function sendMsg() {
+  const v = inputField.value.trim();
+  if (!v) return;
+  inputField.value = '';
+  userMsg(v);
+  handleInput(v);
+}
+
+// ── 구글시트 저장 (JSONP 방식) ──
+function saveToSheet(data) {
+  return new Promise((resolve) => {
+    const cbName = 'cb_' + Date.now();
+    const params = new URLSearchParams({
+      action: 'save',
+      name: data.name,
+      amount: data.amount,
+      contract: data.method,
+      salesperson: data.salesperson,
+      agency: data.agency,
+      modDate: data.modDate,
+      callback: cbName
+    });
+    const script = document.createElement('script');
+    script.src = GAS_URL + '?' + params.toString();
+    window[cbName] = (res) => { delete window[cbName]; script.remove(); resolve(res && res.result === 'success'); };
+    script.onerror = () => { delete window[cbName]; script.remove(); resolve(false); };
+    document.body.appendChild(script);
+  });
+}
+
+// ── 구글시트 불러오기 (JSONP 방식) ──
+function loadFromSheet() {
+  return new Promise((resolve) => {
+    const cbName = 'cb_' + Date.now();
+    const script = document.createElement('script');
+    script.src = GAS_URL + '?action=list&callback=' + cbName;
+    window[cbName] = (res) => { delete window[cbName]; script.remove(); resolve(res && res.result === 'success' ? res.data : null); };
+    script.onerror = () => { delete window[cbName]; script.remove(); resolve(null); };
+    document.body.appendChild(script);
+  });
+}
+
+// ── 목록 표시 ──
+async function showList() {
+  showTyping();
+  const rows = await loadFromSheet();
+  hideTyping();
+  if (!rows || rows.length === 0) { botMsg('등록된 건이 없습니다.'); return; }
+
+  const total = rows.reduce((s, r) => s + (Number(String(r['금액']).replace(/,/g,'')) || 0), 0);
+  const el = document.createElement('div');
+  el.className = 'bot-row';
+  const items = rows.map((r, i) => `
+    <div class="list-item">
+      <div class="list-item-name">${i+1}. ${r['건명'] || '-'}</div>
+      <div class="list-item-meta">
+        <span>${Number(r['금액']).toLocaleString('ko-KR')}원</span>
+        <span class="badge badge-${r['계약방법']}">${r['계약방법'] || '-'}</span>
+        <span>👤 ${r['영업사원'] || '-'}</span>
+        <span>🏢 ${r['대리점'] || '-'}</span>
+        <span>📅 ${r['수정일'] || '-'}</span>
+      </div>
+    </div>
+  `).join('');
+  el.innerHTML = `
+    <div style="width:36px;flex-shrink:0"></div>
+    <div style="max-width:92%">
+      <div class="list-card">
+        <div class="list-header">📋 총 ${rows.length}건 | 합계 ${total.toLocaleString('ko-KR')}원</div>
+        ${items}
+      </div>
+    </div>
+  `;
+  area.appendChild(el);
+  scrollBot();
+}
+
+function showMenu() {
+  step = 'menu';
+  setTimeout(() => {
+    botMsg('무엇을 도와드릴까요? 😊', false);
+    showBtns(['✏️ 새 건 등록', '📋 목록 보기']);
+  }, 100);
+}
+
+async function handleInput(val) {
+  if (step === 'menu') {
+    if (val === '✏️ 새 건 등록') {
+      step = 'name'; draft = {};
+      showTyping(); setTimeout(() => { hideTyping(); botMsg('건명을 입력해 주세요. 📝'); }, 600);
+    } else if (val === '📋 목록 보기') {
+      botMsg('⏳ 구글시트에서 불러오는 중...', false);
+      await showList();
+      showMenu();
+    } else {
+      botMsg('아래 메뉴를 선택해 주세요 😊', false);
+      showMenu();
+    }
+    return;
+  }
+
+  showTyping();
+  await new Promise(r => setTimeout(r, 500));
+  hideTyping();
+
+  if (step === 'name') {
+    draft.name = val; step = 'amount';
+    botMsg('금액을 입력해 주세요. (숫자만) 💰', false);
+  } else if (step === 'amount') {
+    const n = val.replace(/,/g, '');
+    if (isNaN(n) || n === '') { botMsg('숫자를 입력해 주세요. 💰', false); return; }
+    draft.amount = n; step = 'method';
+    botMsg('계약방법을 선택해 주세요. 📄', false);
+    showBtns(['직접계약', '입찰', '수의계약', '기타']);
+  } else if (step === 'method') {
+    if (!['직접계약','입찰','수의계약','기타'].includes(val)) {
+      botMsg('버튼을 눌러 선택해 주세요.', false);
+      showBtns(['직접계약','입찰','수의계약','기타']); return;
+    }
+    draft.method = val; step = 'salesperson';
+    botMsg('영업사원 이름을 입력해 주세요. 👤', false);
+  } else if (step === 'salesperson') {
+    draft.salesperson = val; step = 'agency';
+    botMsg('대리점명을 입력해 주세요. 🏢', false);
+  } else if (step === 'agency') {
+    draft.agency = val; step = 'modDate';
+    botMsg('수정일을 입력해 주세요. (예: 2025-06-18) 📅', false);
+  } else if (step === 'modDate') {
+    draft.modDate = val; step = 'confirm';
+    botMsg('아래 내용으로 등록할까요? ✅', false);
+    botCardEl(draft);
+    showBtns(['✅ 등록하기', '✏️ 다시 입력']);
+  } else if (step === 'confirm') {
+    if (val === '✅ 등록하기') {
+      step = 'saving';
+      botMsg('⏳ 구글시트에 저장 중...', false);
+      const ok = await saveToSheet(draft);
+      if (ok) {
+        botMsg(`✅ <b>${draft.name}</b> 이(가) 구글시트에 저장되었습니다! <span class="sync-badge sync-ok">저장 완료</span>`, false);
+      } else {
+        botMsg(`❌ 저장에 실패했습니다. 네트워크를 확인해 주세요. <span class="sync-badge sync-fail">저장 실패</span>`, false);
+      }
+      showMenu();
+    } else {
+      step = 'name'; draft = {};
+      botMsg('다시 입력할게요. 건명을 입력해 주세요. 📝', false);
+    }
+  }
+}
+
+// 초기 실행
+window.onload = () => {
+  addDateDivider();
+  showTyping();
+  setTimeout(() => {
+    hideTyping();
+    botMsg('안녕하세요! 👋<br>설계관리대장 도우미입니다.<br>데이터는 <b>구글시트에 실시간 저장</b>됩니다.');
+    showMenu();
+  }, 800);
+};
+</script>
+</body>
+</html>

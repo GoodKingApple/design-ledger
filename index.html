@@ -241,7 +241,7 @@ function renderList(rows, keyword, field) {
       <div class="list-item">
         <div class="list-item-name">${i+1}. ${name}</div>
         <div class="list-item-meta">
-          <span>${Number(r['금액']).toLocaleString('ko-KR')}원</span>
+          <span style="font-weight: bold;">${Number(r['금액']).toLocaleString('ko-KR')}원</span>
           <span class="badge badge-${r['계약방법']}">${r['계약방법'] || '-'}</span>
           <span>👤 ${sales}</span>
           <span>🏢 ${agency}</span>
@@ -267,7 +267,7 @@ function showMenu() {
   step = 'menu';
   setTimeout(() => {
     botMsg('무엇을 도와드릴까요? 😊', false);
-    showBtns(['✏️ 새 건 등록', '📋 목록 보기', '🔍 검색']);
+    showBtns(['✏️ 새 건 등록',  '🔍 검색']);
   }, 100);
 }
 
